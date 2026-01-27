@@ -419,6 +419,7 @@ function setSelectedTags(tags) {
 async function handleFormSubmit(e) {
     e.preventDefault();
 
+    // 1. Gather the base form data
     const formData = {
         ship: document.getElementById('form-ship').value,
         title: document.getElementById('form-title').value,
@@ -430,23 +431,19 @@ async function handleFormSubmit(e) {
         tags: getSelectedTags(),
         rating: document.getElementById('form-rating').value,
         status: document.getElementById('form-status').value,
-        rereads: updatedRereads
+        // Default to empty array for new fics
+        rereads: [] 
     };
     
     const dateValue = document.getElementById('form-date').value;
     if (dateValue) {
         formData.date_read = dateValue;
     }
-    
-    
 
-    // 🔥 THIS is the reread sync
+    // 2. If we are EDITING, grab the dates from the reread list inputs
     if (editingFicId) {
-        const rereads = Array.from(
-            document.querySelectorAll('#rereads-list input[type="date"]')
-        ).map(input => input.value);
-
-        formData.rereads = rereads;
+        const rereadInputs = document.querySelectorAll('#rereads-list input[type="date"]');
+        formData.rereads = Array.from(rereadInputs).map(input => input.value);
     }
 
     try {
@@ -456,9 +453,10 @@ async function handleFormSubmit(e) {
                 .update(formData)
                 .eq('id', editingFicId);
         } else {
+            // For new fics, the empty array in formData.rereads is used
             await supabaseClient
                 .from('fanfics')
-                .insert([{ ...formData, rereads: [] }]);
+                .insert([formData]);
         }
 
         closeModal();
