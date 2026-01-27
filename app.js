@@ -16,13 +16,24 @@ const supabaseClient = window.supabaseClient;
 // CONSTANTS
 // ==========================================
 const SHIPS = ['Klance', 'Merthur', 'Hollanov', 'Drarry'];
-const RATINGS = ['Terrible', 'Bad', 'Fine', 'Good', 'Great', 'Amazing', 'Favorite'];
-const STATUSES = ['To Read', 'Reading', 'Paused', 'Read', 'DNF'];
+const RATINGS = ['Favorite', 'Amazing', 'Great', 'Good', 'Fine', 'Bad', 'Terrible'];
+const STATUSES = ['Read', 'To Read', 'Reading', 'Paused', 'DNF'];
 const DEFAULT_TAGS = [
-    'Angst', 'Fluff', 'Hurt/Comfort', 'Slow Burn', 'Enemies to Lovers',
-    'Friends to Lovers', 'Canon Divergence', 'AU', 'Fix-It', 'Crack',
-    'Smut', 'Pining', 'Mutual Pining', 'Happy Ending', 'Sad Ending'
+    'Angst', 'Fluff', 'Hurt/Comfort', 'Slow Burn', 'Enemies to Lovers'
 ];
+
+const RATING_ORDER = {
+    'Favorite': 7,
+    'Amazing': 6,
+    'Great': 5,
+    'Good': 4,
+    'Fine': 3,
+    'Bad': 2,
+    'Terrible': 1
+};
+
+let tagsPool = [...DEFAULT_TAGS]; // will grow as new tags are created
+
 
 // ==========================================
 // STATE
@@ -32,16 +43,20 @@ let editingFicId = null;
 let sortBy = 'title';
 let sortDir = 'asc';
 let filters = {};
+let tagFilterSelected = []; // currently selected tags for filtering
+
 
 // ==========================================
 // INITIALIZATION
 // ==========================================
-document.addEventListener('DOMContentLoaded', () => {
-    initializeEventListeners();
-    renderTagsInModal();
-    setDefaultDate();
-    loadDashboard();
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadTagsFromFics();      // Load all tags from your fics
+    initializeEventListeners();     // Set up buttons, inputs, etc.
+    renderTagsInModal();            // Render tag buttons in modal
+    setDefaultDate();               // Set default date for forms
+    loadDashboard();                // Load the dashboard fics
 });
+
 
 function initializeEventListeners() {
     // Navigation
@@ -77,6 +92,14 @@ function initializeEventListeners() {
         applyFilters();
     });
     document.getElementById('sort-dir-btn').addEventListener('click', toggleSortDir);
+    document.getElementById('parse-html-btn').addEventListener('click', parseFromPastedHTML);
+    document.getElementById('open-AO3-Page-btn').addEventListener('click', openAO3Page);
+    document.getElementById('tag-search-input').addEventListener('input', (e) => {
+        renderTagsInModal(e.target.value);
+    });
+    document.getElementById('tag-filter-input').addEventListener('input', applyFilters);
+
+
 }
 
 // ==========================================
@@ -203,28 +226,42 @@ function renderFics(fics) {
         filtered = filtered.filter(f => f.explicit === (explicitFilter === 'true'));
     }
 
+    // Multi-tag filter
+    if (tagFilterSelected.length > 0) {
+        filtered = filtered.filter(fic => 
+            tagFilterSelected.every(tag => (fic.tags || []).includes(tag))
+        );
+    }
+
     // Sort
     filtered.sort((a, b) => {
-        let aVal, bVal;
-        
-        if (sortBy === 'word_count') {
-            aVal = a.word_count || 0;
-            bVal = b.word_count || 0;
-        } else if (sortBy === 'rereads') {
-            aVal = a.rereads ? a.rereads.length : 0;
-            bVal = b.rereads ? b.rereads.length : 0;
-        } else {
-            aVal = (a[sortBy] || '').toString();
-            bVal = (b[sortBy] || '').toString();
-        }
+    let aVal, bVal;
 
-        const dir = sortDir === 'asc' ? 1 : -1;
-        
-        if (typeof aVal === 'number') {
-            return (aVal - bVal) * dir;
-        }
-        return aVal.localeCompare(bVal) * dir;
-    });
+    if (sortBy === 'word_count') {
+        aVal = a.word_count || 0;
+        bVal = b.word_count || 0;
+
+    } else if (sortBy === 'rereads') {
+        aVal = a.rereads ? a.rereads.length : 0;
+        bVal = b.rereads ? b.rereads.length : 0;
+
+    } else if (sortBy === 'rating') {
+        aVal = RATING_ORDER[a.rating] || 0;
+        bVal = RATING_ORDER[b.rating] || 0;
+
+    } else {
+        aVal = (a[sortBy] || '').toString().toLowerCase();
+        bVal = (b[sortBy] || '').toString().toLowerCase();
+    }
+
+    const dir = sortDir === 'asc' ? 1 : -1;
+
+    if (typeof aVal === 'number') {
+        return (aVal - bVal) * dir;
+    }
+
+    return aVal.localeCompare(bVal) * dir;
+});
 
     // Render
     container.innerHTML = filtered.map(fic => createFicCard(fic)).join('');
@@ -242,10 +279,10 @@ function renderFics(fics) {
         btn.addEventListener('click', () => addReread(btn.dataset.id));
     });
 
-    container.querySelectorAll('.btn-manage-rereads').forEach(btn => {
-        btn.addEventListener('click', () => manageRereads(btn.dataset.id));
-    });
+      
 }
+
+
 
 function createFicCard(fic) {
     const tags = fic.tags || [];
@@ -284,11 +321,14 @@ function createFicCard(fic) {
             </div>
 
             <div class="fic-reread-section">
-                <button class="btn-reread" data-id="${fic.id}">🔄 Reread</button>
+            <button class="btn-reread" data-id="${fic.id}">
+            ↪️ Reread
+            </button>
+
+
                 <div class="reread-count">
                     <strong>${totalReads}</strong> reads total
                     ${lastReread ? `<span class="last-read">(Last: ${lastReread})</span>` : ''}
-                    ${rereads.length > 0 ? `<button class="btn-manage-rereads" data-id="${fic.id}">✏️ Manage</button>` : ''}
                 </div>
             </div>
         </div>
@@ -316,9 +356,13 @@ function closeModal() {
     editingFicId = null;
 }
 
-function renderTagsInModal() {
+function renderTagsInModal(filter = '') {
     const container = document.getElementById('tags-container');
-    container.innerHTML = DEFAULT_TAGS.map(tag => 
+    const search = filter.toLowerCase();
+
+    const filteredTags = tagsPool.filter(tag => tag.toLowerCase().includes(search));
+
+    container.innerHTML = filteredTags.map(tag => 
         `<button type="button" class="tag-btn inactive" data-tag="${tag}">${tag}</button>`
     ).join('');
 
@@ -328,7 +372,23 @@ function renderTagsInModal() {
             e.target.classList.toggle('inactive');
         });
     });
+
+    // If user typed a new tag that doesn't exist, show "Create" button
+    if (search && !tagsPool.some(t => t.toLowerCase() === search)) {
+        const createBtn = document.createElement('button');
+        createBtn.type = 'button';
+        createBtn.className = 'tag-btn create';
+        createBtn.textContent = `+ Create "${filter}"`;
+        createBtn.onclick = () => {
+            tagsPool.push(filter);
+            renderTagsInModal(); // re-render
+            setSelectedTags([filter]);
+            document.getElementById('tag-search-input').value = '';
+        };
+        container.appendChild(createBtn);
+    }
 }
+
 
 function setDefaultDate() {
     const today = new Date().toISOString().split('T')[0];
@@ -352,6 +412,7 @@ function setSelectedTags(tags) {
     });
 }
 
+
 // ==========================================
 // FORM HANDLING
 // ==========================================
@@ -369,38 +430,46 @@ async function handleFormSubmit(e) {
         tags: getSelectedTags(),
         rating: document.getElementById('form-rating').value,
         status: document.getElementById('form-status').value,
-        date_read: document.getElementById('form-date').value,
-        rereads: editingFicId ? undefined : []
+        rereads: updatedRereads
     };
+    
+    const dateValue = document.getElementById('form-date').value;
+    if (dateValue) {
+        formData.date_read = dateValue;
+    }
+    
+    
+
+    // 🔥 THIS is the reread sync
+    if (editingFicId) {
+        const rereads = Array.from(
+            document.querySelectorAll('#rereads-list input[type="date"]')
+        ).map(input => input.value);
+
+        formData.rereads = rereads;
+    }
 
     try {
         if (editingFicId) {
-            const { error } = await supabaseClient
+            await supabaseClient
                 .from('fanfics')
                 .update(formData)
                 .eq('id', editingFicId);
-
-            if (error) throw error;
         } else {
-            const { error } = await supabaseClient
+            await supabaseClient
                 .from('fanfics')
-                .insert([formData]);
-
-            if (error) throw error;
+                .insert([{ ...formData, rereads: [] }]);
         }
 
         closeModal();
-        
-        if (currentShip === 'dashboard') {
-            loadDashboard();
-        } else {
-            loadShipFics(currentShip);
-        }
+        loadShipFics(currentShip);
+
     } catch (error) {
         console.error('Error saving fic:', error);
-        alert('Error saving fanfic. Check console for details.');
+        alert('Error saving fanfic.');
     }
 }
+
 
 async function editFic(id) {
     try {
@@ -413,8 +482,10 @@ async function editFic(id) {
         if (error) throw error;
 
         editingFicId = id;
+
+        // ----- Basic modal setup -----
         document.getElementById('modal-title').textContent = 'Edit Fanfic';
-        
+
         document.getElementById('form-ship').value = fic.ship;
         document.getElementById('form-title').value = fic.title;
         document.getElementById('form-link').value = fic.link;
@@ -425,15 +496,95 @@ async function editFic(id) {
         document.getElementById('form-rating').value = fic.rating;
         document.getElementById('form-status').value = fic.status;
         document.getElementById('form-date').value = fic.date_read || '';
-        
+
         setSelectedTags(fic.tags || []);
-        
+
+        // ----- REREADS -----
+        const rereadsSection = document.getElementById('rereads-section');
+        const rereadsList = document.getElementById('rereads-list');
+        const addRereadBtn = document.getElementById('add-reread-btn');
+
+        let rereads = [...(fic.rereads || [])];
+
+        rereadsSection.style.display = 'block';
+
+        function renderRereads() {
+            rereadsList.innerHTML = rereads.map((date, index) => `
+                <div class="reread-row">
+                    <input type="date" value="${date}" data-index="${index}">
+                    <button type="button" class="btn-delete-reread" data-index="${index}">
+                        ✕
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        renderRereads();
+
+        // Add reread (defaults to today)
+        addRereadBtn.onclick = () => {
+            rereads.push(new Date().toISOString().split('T')[0]);
+            renderRereads();
+        };
+
+        // Delete reread
+        rereadsList.onclick = (e) => {
+            if (!e.target.classList.contains('btn-delete-reread')) return;
+            const index = Number(e.target.dataset.index);
+            rereads.splice(index, 1);
+            renderRereads();
+        };
+
+        // ----- Override submit to include rereads -----
+        const form = document.getElementById('fic-form');
+        const originalSubmit = form.onsubmit;
+
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+
+            const updatedRereads = Array.from(
+                document.querySelectorAll('#rereads-list input[type="date"]')
+            ).map(input => input.value);
+
+            const formData = {
+                ship: document.getElementById('form-ship').value,
+                title: document.getElementById('form-title').value,
+                link: document.getElementById('form-link').value,
+                author: document.getElementById('form-author').value,
+                summary: document.getElementById('form-summary').value,
+                word_count: parseInt(document.getElementById('form-wordcount').value) || 0,
+                explicit: document.getElementById('form-explicit').checked,
+                tags: getSelectedTags(),
+                rating: document.getElementById('form-rating').value,
+                status: document.getElementById('form-status').value,
+                rereads: updatedRereads
+            };
+
+            const { error } = await supabaseClient
+                .from('fanfics')
+                .update(formData)
+                .eq('id', editingFicId);
+
+            if (error) {
+                console.error(error);
+                alert('Error updating fanfic');
+                return;
+            }
+
+            closeModal();
+            loadShipFics(currentShip);
+
+            form.onsubmit = originalSubmit; // restore
+        };
+
         document.getElementById('modal').classList.add('active');
+
     } catch (error) {
         console.error('Error loading fic:', error);
-        alert('Error loading fanfic. Check console for details.');
+        alert('Error loading fanfic.');
     }
 }
+
 
 async function deleteFic(id) {
     if (!confirm('Are you sure you want to delete this fanfic?')) return;
@@ -455,30 +606,30 @@ async function deleteFic(id) {
 
 async function addReread(id) {
     try {
-        const { data: fic, error: fetchError } = await supabaseClient
+        const { data: fic, error } = await supabaseClient
             .from('fanfics')
             .select('rereads')
             .eq('id', id)
             .single();
 
-        if (fetchError) throw fetchError;
+        if (error) throw error;
 
         const today = new Date().toISOString().split('T')[0];
         const updatedRereads = [...(fic.rereads || []), today];
 
-        const { error: updateError } = await supabaseClient
+        await supabaseClient
             .from('fanfics')
             .update({ rereads: updatedRereads })
             .eq('id', id);
 
-        if (updateError) throw updateError;
-
         loadShipFics(currentShip);
-    } catch (error) {
-        console.error('Error adding reread:', error);
-        alert('Error adding reread. Check console for details.');
+    } catch (err) {
+        console.error(err);
+        alert('Could not add reread');
     }
 }
+
+  
 
 // ==========================================
 // FILTERS & SORTING
@@ -518,68 +669,63 @@ async function fetchFromAO3() {
 
     const btn = document.getElementById('fetch-ao3-btn');
     btn.textContent = 'Fetching...';
+    btn.disabled = true;
 
-    // 1. CLEAN URL
-    if (link.includes('/chapters/')) link = link.split('/chapters/')[0];
-    const urlObj = new URL(link);
-    urlObj.searchParams.set('view_adult', 'true');
-    urlObj.searchParams.set('view_full_work', 'true');
-
+    // Use a standard fetch if .invoke() continues to fail
     try {
-        const proxyUrl = 'https://api.allorigins.win/raw?url=';
-        const response = await fetch(proxyUrl + encodeURIComponent(urlObj.toString()));
-        const html = await response.text();
+        const functionUrl = `${SUPABASE_URL}/functions/v1/fetch-ao3?url=${encodeURIComponent(link)}`;
         
-        // Try to parse the results from the proxy
+        const response = await fetch(functionUrl, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Network response was not ok');
+        }
+
+        const html = await response.text();
         const success = parseAO3Data(html);
         
-        if (!success) {
-            throw new Error("Proxy returned empty or restricted content.");
-        }
-    } catch (error) {
-        console.log("Automatic fetch blocked. Switching to manual mode.");
-        
-        // 2. FALLBACK: MANUAL HTML PASTE
-        const manualHTML = prompt(
-            "AO3 is blocking the automatic fetcher.\n\n" +
-            "To fix this:\n" +
-            "1. Go to the AO3 page.\n" +
-            "2. Right-click and select 'View Page Source' (or Ctrl+U).\n" +
-            "3. Copy everything (Ctrl+A, Ctrl+C) and paste it here:"
-        );
+        if (!success) alert('Could not parse AO3 page.');
 
-        if (manualHTML) {
-            const manualSuccess = parseAO3Data(manualHTML);
-            if (!manualSuccess) alert("Could not parse the pasted HTML. Make sure you copied the whole Page Source.");
-        }
+    } catch (err) {
+        console.error('Detailed Error:', err);
+        alert(`AO3 fetch failed: ${err.message}`);
     } finally {
         btn.textContent = 'Fetch from AO3';
+        btn.disabled = false;
     }
 }
-
 // Separate Parsing Engine to handle both Proxy and Manual inputs
 function parseAO3Data(html) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
 
-    // Title: Check for the work title first to avoid "Chapter X" clutter
-    const title = doc.querySelector('#workskin .preface .title')?.innerText.trim() || 
-                  doc.querySelector('h2.title')?.innerText.trim();
+    // 1. Title
+    const title = doc.querySelector('.preface .title')?.textContent.trim() || 
+                  doc.querySelector('h2.title')?.textContent.trim();
 
     if (!title || title === "Archive of Our Own") return false;
 
-    // Author
-    const author = doc.querySelector('a[rel="author"]')?.innerText.trim() || "Anonymous";
+    // 2. Author
+    const author = doc.querySelector('a[rel="author"]')?.textContent.trim() || "Anonymous";
 
-    // Summary: Grabs the work summary even in Chapter view
-    const summaryBlock = doc.querySelector('.preface .summary blockquote.userstuff') || 
-                         doc.querySelector('.summary.module blockquote.userstuff') ||
-                         doc.querySelector('.summary blockquote.userstuff');
-    const summary = summaryBlock ? summaryBlock.innerText.trim() : "";
+    // 3. Summary
+    const summaryBlock = doc.querySelector('.summary blockquote.userstuff');
+    const summary = summaryBlock ? summaryBlock.textContent.trim() : "";
 
-    // Word Count
+    // 4. Word Count (Check multiple possible locations)
+    let wordCount = "0";
     const wordsDD = doc.querySelector('dd.words');
-    const wordCount = wordsDD ? wordsDD.innerText.replace(/,/g, '').match(/\d+/)[0] : "0";
+    if (wordsDD) {
+        // Remove commas and extract numbers
+        wordCount = wordsDD.textContent.replace(/,/g, '').match(/\d+/)?.[0] || "0";
+    }
 
     // --- Fill the Form ---
     document.getElementById('form-title').value = title;
@@ -587,66 +733,143 @@ function parseAO3Data(html) {
     document.getElementById('form-summary').value = summary;
     document.getElementById('form-wordcount').value = wordCount;
 
-    alert(`✅ Data Extracted: ${title}`);
-    return true;
+    return true; // Success
 }
-// ==========================================
-// MANAGE REREADS
-// ==========================================
-async function manageRereads(id) {
+
+function parseFromPastedHTML() {
+    const html = document.getElementById('form-html-source').value.trim();
+
+    if (!html) {
+        alert('Please paste the AO3 page source first.');
+        return;
+    }
+
+    const success = parseAO3Data(html);
+
+    if (!success) {
+        alert('Could not extract data from pasted HTML.');
+        return;
+    }
+
+    // --- Extract work ID and build link ---
+    const formLink = document.getElementById('form-link');
+    // Regex to find /works/NUMBER anywhere in the HTML
+    const match = html.match(/\/works\/(\d+)/);
+    if (match) {
+        const workId = match[1];
+        const ao3Link = `https://archiveofourown.org/works/${workId}`;
+        formLink.value = ao3Link; // ALWAYS set it
+    } else {
+        console.warn('No AO3 work ID found in pasted HTML.');
+        formLink.value = ''; // clear if not found
+    }
+}
+
+
+
+function openAO3Page() {
+    const link = document.getElementById('form-link').value.trim();
+    if (!link || !link.includes('archiveofourown.org')) {
+        alert('Please enter a valid AO3 link.');
+        return;
+    }
+    window.open(link, '_blank'); // normal AO3 page
+}
+
+function resetTagFilter() {
+    tagFilterSelected = [];
+    renderTagsInInput(); // use the pill renderer
+    document.getElementById('tag-filter-input').value = '';
+    applyFilters();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const tagInput = document.getElementById('tag-filter-input');
+    const suggestionContainer = document.getElementById('tag-filter-suggestions');
+    const wrapper = document.getElementById('tag-filter-wrapper');
+
+    // Input typing for suggestions
+    tagInput.addEventListener('input', (e) => {
+        const search = e.target.value.toLowerCase().trim();
+        if (!search) {
+            suggestionContainer.style.display = 'none';
+            return;
+        }
+
+        const matches = tagsPool.filter(tag => 
+            tag.toLowerCase().includes(search) && !tagFilterSelected.includes(tag)
+        );
+
+        suggestionContainer.innerHTML = matches.map(tag => `
+            <button type="button" data-tag="${tag}">${tag}</button>
+        `).join('');
+
+        suggestionContainer.style.display = matches.length > 0 ? 'block' : 'none';
+
+        suggestionContainer.querySelectorAll('button').forEach(btn => {
+            btn.onclick = () => {
+                if (!tagFilterSelected.includes(btn.dataset.tag)) {
+                    tagFilterSelected.push(btn.dataset.tag);
+                    renderTagsInInput();
+                    tagInput.value = '';
+                    suggestionContainer.style.display = 'none';
+                    applyFilters();
+                }
+            };
+        });
+    });
+});
+
+// Renders selected tags as pills inside the input wrapper
+function renderTagsInInput() {
+    const wrapper = document.getElementById('tag-filter-wrapper');
+    const input = document.getElementById('tag-filter-input');
+
+    // Remove existing pills but keep input
+    wrapper.querySelectorAll('.tag-pill').forEach(pill => pill.remove());
+
+    tagFilterSelected.forEach(tag => {
+        const pill = document.createElement('span');
+        pill.className = 'tag-pill';
+        pill.textContent = tag;
+
+        const removeBtn = document.createElement('span');
+        removeBtn.textContent = '×';
+        removeBtn.style.marginLeft = '4px';
+        removeBtn.style.cursor = 'pointer';
+        removeBtn.addEventListener('click', () => {
+            tagFilterSelected = tagFilterSelected.filter(t => t !== tag);
+            renderTagsInInput();
+            applyFilters();
+        });
+
+        pill.appendChild(removeBtn);
+        pill.style.background = '#fee';
+        pill.style.color = '#991b1b';
+        pill.style.padding = '2px 6px';
+        pill.style.borderRadius = '12px';
+        pill.style.fontSize = '0.85rem';
+        pill.style.display = 'inline-flex';
+        pill.style.alignItems = 'center';
+
+        wrapper.insertBefore(pill, input);
+    });
+}
+
+async function loadTagsFromFics() {
     try {
-        const { data: fic, error } = await supabaseClient
+        const { data: fics, error } = await supabaseClient
             .from('fanfics')
-            .select('title, rereads')
-            .eq('id', id)
-            .single();
+            .select('tags');
 
         if (error) throw error;
 
-        const rereads = fic.rereads || [];
-        
-        if (rereads.length === 0) {
-            alert('No rereads to manage');
-            return;
-        }
+        // Flatten all tags from all fics
+        const allTags = fics.flatMap(f => f.tags || []);
 
-        let message = `Manage rereads for "${fic.title}"\n\n`;
-        rereads.forEach((date, index) => {
-            message += `${index + 1}. ${date}\n`;
-        });
-        message += '\nEnter the number(s) of rereads to DELETE (comma-separated), or click Cancel to keep all:';
-
-        const input = prompt(message);
-        
-        if (input === null) return; // User cancelled
-        
-        if (input.trim() === '') {
-            alert('No changes made');
-            return;
-        }
-
-        const numbersToDelete = input.split(',')
-            .map(n => parseInt(n.trim()) - 1)
-            .filter(n => !isNaN(n) && n >= 0 && n < rereads.length);
-
-        if (numbersToDelete.length === 0) {
-            alert('No valid numbers entered');
-            return;
-        }
-
-        const updatedRereads = rereads.filter((_, index) => !numbersToDelete.includes(index));
-
-        const { error: updateError } = await supabaseClient
-            .from('fanfics')
-            .update({ rereads: updatedRereads })
-            .eq('id', id);
-
-        if (updateError) throw updateError;
-
-        alert(`Deleted ${numbersToDelete.length} reread(s)`);
-        loadShipFics(currentShip);
-    } catch (error) {
-        console.error('Error managing rereads:', error);
-        alert('Error managing rereads. Check console for details.');
+        // Combine with default tags, remove duplicates
+        tagsPool = Array.from(new Set([...DEFAULT_TAGS, ...allTags]));
+    } catch (err) {
+        console.error('Error loading tags:', err);
     }
 }

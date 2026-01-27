@@ -78,6 +78,7 @@
                 <div class="filters-grid">
                     <input type="text" id="search-input" placeholder="Search title or author...">
                     
+
                     <select id="status-filter">
                         <option value="">All Statuses</option>
                         <option value="Read">Read</option>
@@ -89,13 +90,13 @@
 
                     <select id="rating-filter">
                         <option value="">All Ratings</option>
-                        <option value="Terrible">Terrible</option>
-                        <option value="Bad">Bad</option>
-                        <option value="Fine">Fine</option>
-                        <option value="Good">Good</option>
-                        <option value="Great">Great</option>
-                        <option value="Amazing">Amazing</option>
                         <option value="Favorite">Favorite</option>
+                        <option value="Amazing">Amazing</option>
+                        <option value="Great">Great</option>
+                        <option value="Good">Good</option>
+                        <option value="Fine">Fine</option>
+                        <option value="Bad">Bad</option>
+                        <option value="Terrible">Terrible</option>
                     </select>
 
                     <select id="explicit-filter">
@@ -112,6 +113,11 @@
                         <option value="date_read">Sort by Date Read</option>
                         <option value="rereads">Sort by Rereads</option>
                     </select>
+
+                    <div id="tag-filter-wrapper">
+                        <input id="tag-filter-input" type="text" placeholder="Filter tags...">
+                        <div id="tag-filter-suggestions"></div>
+                    </div>
 
                     <button id="sort-dir-btn" class="btn-sort">↑ Ascending</button>
                 </div>
@@ -153,6 +159,20 @@
                     </div>
                     <small style="color: #666; font-size: 0.75rem;">Paste an AO3 link and click "Fetch from AO3" to auto-fill details</small>
                 </div>
+                
+
+                <div class="form-group">
+                    <label for="form-html-source">AO3 Page Source</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input id="form-html-source" style="flex: 1;">
+                        <button type="button" id="parse-html-btn" class="btn-primary" style="white-space: nowrap;">Extract From Source Code</button>
+                    </div>
+                    <small style="color: #666; font-size: 0.75rem;">Faster than fetching — paste the full HTML from AO3’s View Source.
+                    </small>
+                    <button type="button" id="open-AO3-Page-btn" class="btn-primary" style="white-space: nowrap;">Open AO3 Page</button>
+            
+                  </div>
+                  
 
                 <div class="form-group">
                     <label>Author *</label>
@@ -209,11 +229,21 @@
 
                 <div class="form-group">
                     <label>Tags</label>
+                    <input type="text" id="tag-search-input" placeholder="Search or create tag..." style="margin-bottom: 0.7rem;" />
                     <div id="tags-container" class="tags-container"></div>
                 </div>
 
+                <div class="form-group" id="rereads-section" style="display:none;">
+                    <label>Rereads</label>
+                    <div id="rereads-list"></div>
+                    <button type="button" class="btn-secondary" id="add-reread-btn">
+                      + Add Reread
+                    </button>
+                  </div>
+                  
+
                 <div class="form-actions">
-                    <button type="submit" class="btn-primary btn-full">Add Fanfic</button>
+                    <button type="submit" class="btn-primary btn-full">Done</button>
                     <button type="button" class="btn-secondary" id="cancel-btn">Cancel</button>
                 </div>
             </form>
