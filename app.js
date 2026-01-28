@@ -389,10 +389,17 @@ function renderTagsInModal(filter = '') {
     }
 }
 
+function getLocalDateString() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 
 function setDefaultDate() {
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('form-date').value = today;
+    document.getElementById('form-date').value = getLocalDateString();
 }
 
 function getSelectedTags() {
@@ -521,7 +528,7 @@ async function editFic(id) {
 
         // Add reread (defaults to today)
         addRereadBtn.onclick = () => {
-            rereads.push(new Date().toISOString().split('T')[0]);
+            rereads.push(getLocalDateString());
             renderRereads();
         };
 
@@ -612,7 +619,7 @@ async function addReread(id) {
 
         if (error) throw error;
 
-        const today = new Date().toISOString().split('T')[0];
+        const today = getLocalDateString();
         const updatedRereads = [...(fic.rereads || []), today];
 
         await supabaseClient
