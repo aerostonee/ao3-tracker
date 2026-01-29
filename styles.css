@@ -558,6 +558,117 @@ body {
     cursor: pointer;
 }
 
+.fic-summary {
+    font-size: 0.875rem;
+    white-space: pre-line;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 0.25rem;
+    line-height: 1.4;
+}
+
+.fic-summary.expanded {
+    -webkit-line-clamp: unset;
+}
+
+.fic-summary-wrapper {
+    margin-bottom: 1rem;
+}
+
+.btn-summary-toggle {
+    background: none;
+    border: none;
+    padding: 0;
+    margin-top: 0.25rem;
+
+    color: #991b1b;
+    font-size: 0.75rem;
+    font-weight: 500;
+
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.btn-summary-toggle:hover {
+    color: #5f1414;
+}
+
+.fic-summary:not(.expanded)::after {
+    content: "";
+    display: block;
+    height: 1.5rem;
+    margin-top: -1.5rem;
+    background: linear-gradient(to bottom, rgba(255,255,255,0), white);
+}
+
+/* ===== LOGIN SCREEN ===== */
+.login-screen {
+    position: fixed;
+    inset: 0;
+    background: white; /* matches body */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.login-card {
+    background: white;
+    border: 2px solid #991b1b;
+    border-radius: 8px;
+    padding: 2rem;
+    width: 320px;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.login-card h1 {
+    color: #991b1b;
+    font-size: 1.75rem;
+    margin-bottom: 1rem;
+}
+
+.login-card p {
+    color: #666;
+    margin-bottom: 1rem;
+}
+
+.login-card input {
+    width: 100%;
+    padding: 0.5rem;
+    margin-bottom: 1rem;
+    border: 1px solid #dc2626;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: inherit;
+}
+
+.login-card button {
+    width: 100%;
+    padding: 0.5rem;
+    border-radius: 4px;
+    border: none;
+    background: #991b1b;
+    color: white;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.login-card button:hover {
+    background: #7f1d1d;
+}
+
+.login-error {
+    color: #dc2626;
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+}
+
 
 /* Responsive */
 @media (max-width: 768px) {

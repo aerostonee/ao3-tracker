@@ -1,4 +1,43 @@
 // ==========================================
+// LOGIN SCREEN PASSWORD GATE
+// ==========================================
+const SITE_PASSWORD = '321123';
+
+document.addEventListener('DOMContentLoaded', () => {
+    const loginScreen = document.getElementById('login-screen');
+    const app = document.getElementById('app');
+    const input = document.getElementById('password-input');
+    const btn = document.getElementById('login-btn');
+    const error = document.getElementById('login-error');
+
+    // Already logged in?
+    if (sessionStorage.getItem('site-auth') === 'true') {
+        loginScreen.style.display = 'none';
+        app.style.display = 'block';
+        return;
+    }
+
+    btn.addEventListener('click', tryLogin);
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') tryLogin();
+    });
+
+    function tryLogin() {
+        if (input.value === SITE_PASSWORD) {
+            sessionStorage.setItem('site-auth', 'true');
+            loginScreen.style.display = 'none';
+            app.style.display = 'block';
+        } else {
+            error.textContent = 'Incorrect password';
+            input.value = '';
+            input.focus();
+        }
+    }
+});
+
+
+
+// ==========================================
 // SUPABASE CONFIGURATION
 // ==========================================
 const SUPABASE_URL = 'https://kiudufbqyfzknarfrkcm.supabase.co';
@@ -98,6 +137,7 @@ function initializeEventListeners() {
         renderTagsInModal(e.target.value);
     });
     document.getElementById('tag-filter-input').addEventListener('input', applyFilters);
+    
 
 
 }
@@ -279,6 +319,24 @@ function renderFics(fics) {
         btn.addEventListener('click', () => addReread(btn.dataset.id));
     });
 
+    container.querySelectorAll('.btn-summary-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = btn.dataset.id;
+            const summary = document.getElementById(`summary-${id}`);
+    
+            const expanded = summary.classList.toggle('expanded');
+            btn.textContent = expanded ? 'Less' : 'More';
+        });
+    
+        // 🔽 HIDE BUTTON IF SUMMARY DOESN'T OVERFLOW
+        const id = btn.dataset.id;
+        const summary = document.getElementById(`summary-${id}`);
+    
+        if (summary.scrollHeight <= summary.clientHeight) {
+            btn.style.display = 'none';
+        }
+    });
+
       
 }
 
@@ -307,7 +365,18 @@ function createFicCard(fic) {
                 </div>
             </div>
 
-            ${fic.summary ? `<p class="fic-summary">${fic.summary}</p>` : ''}
+            ${fic.summary ? `
+                <div class="fic-summary-wrapper">
+                    <p class="fic-summary" id="summary-${fic.id}">
+                        ${fic.summary}
+                    </p>
+                    <button 
+                        class="btn-summary-toggle" 
+                        data-id="${fic.id}">
+                        More
+                    </button>
+                </div>
+            ` : ''}
 
             <div class="fic-tags">
                 ${tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
