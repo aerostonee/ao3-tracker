@@ -55,7 +55,7 @@ const supabaseClient = window.supabaseClient;
 // CONSTANTS
 // ==========================================
 const SHIPS = ['Klance', 'Merthur', 'Hollanov', 'Drarry'];
-const RATINGS = ['Favorite', 'Amazing', 'Great', 'Good', 'Fine', 'Bad', 'Terrible'];
+const RATINGS = ['Favorite', 'Amazing', 'Great', 'Good', 'Fine', 'Bad', 'Terrible', 'N/A'];
 const STATUSES = ['Read', 'To Read', 'Reading', 'Paused', 'DNF'];
 const DEFAULT_TAGS = [
     'Angst', 'Fluff', 'Hurt/Comfort', 'Slow Burn', 'Enemies to Lovers'
@@ -68,7 +68,8 @@ const RATING_ORDER = {
     'Good': 4,
     'Fine': 3,
     'Bad': 2,
-    'Terrible': 1
+    'Terrible': 1,
+    'N/A': 0
 };
 
 let tagsPool = [...DEFAULT_TAGS]; // will grow as new tags are created
@@ -128,8 +129,22 @@ function initializeEventListeners() {
     document.getElementById('explicit-filter').addEventListener('change', applyFilters);
     document.getElementById('sort-by').addEventListener('change', (e) => {
         sortBy = e.target.value;
+    
+        if (['author', 'title'].includes(sortBy)) {
+            // 🔒 Text fields always ASC
+            sortDir = 'asc';
+        } else if (sortBy === 'date_read') {
+            // 📅 Dates default to DESC (newest first)
+            sortDir = 'desc';
+        } else {
+            // 🔢 Numeric fields default to DESC
+            sortDir = 'desc';
+        }
+    
+        updateSortDirButton();
         applyFilters();
     });
+    
     document.getElementById('sort-dir-btn').addEventListener('click', toggleSortDir);
     document.getElementById('parse-html-btn').addEventListener('click', parseFromPastedHTML);
     document.getElementById('open-AO3-Page-btn').addEventListener('click', openAO3Page);
@@ -234,11 +249,21 @@ async function loadShipFics(ship) {
 
 function renderFics(fics) {
     const container = document.getElementById('fics-container');
+
+        // Update Filters & Sort count (total for this ship)
+    const filtersTitle = document.getElementById('filters-title');
+    if (filtersTitle) {
+        filtersTitle.textContent = `Filters & Sort (${fics.length})`;
+    }
+
     
     if (fics.length === 0) {
         container.innerHTML = '<div class="empty-state">No fanfics found. Add one to get started!</div>';
         return;
     }
+
+    
+    
 
     // Apply filters
     let filtered = fics;
@@ -273,35 +298,67 @@ function renderFics(fics) {
         );
     }
 
+
+    
+
     // Sort
     filtered.sort((a, b) => {
-    let aVal, bVal;
+        const dir = sortDir === 'asc' ? 1 : -1;
+    
+        // ---------- helpers ----------
+        const getLastReadDate = (item) => {
+            const dateStr =
+                item.rereads && item.rereads.length > 0
+                    ? item.rereads[item.rereads.length - 1]
+                    : item.date_read;
+    
+            return dateStr ? new Date(dateStr) : new Date(0);
+        };
+    
+        const compareDates = (d1, d2) => {
+            if (d1.getTime() !== d2.getTime()) {
+                return (d1 - d2) * dir;
+            }
+            return 0;
+        };
+    
+        // ---------- PRIMARY SORT ----------
+        let result = 0;
+    
+        if (sortBy === 'date_read') {
+            result = compareDates(getLastReadDate(a), getLastReadDate(b));
+        } 
+        else if (sortBy === 'word_count') {
+            result = ((a.word_count || 0) - (b.word_count || 0)) * dir;
+        } 
+        else if (sortBy === 'rereads') {
+            result = ((a.rereads?.length || 0) - (b.rereads?.length || 0)) * dir;
+        } 
+        else if (sortBy === 'rating') {
+            result = ((RATING_ORDER[a.rating] || 0) - (RATING_ORDER[b.rating] || 0)) * dir;
+        } 
+        else {
+            // string fields: author, title, etc.
+            const aVal = (a[sortBy] || '').toString().toLowerCase();
+            const bVal = (b[sortBy] || '').toString().toLowerCase();
+            result = aVal.localeCompare(bVal) * dir;
+        }
+    
+        if (result !== 0) return result;
+    
+        // ---------- SECONDARY: date_read ----------
+        result = compareDates(getLastReadDate(a), getLastReadDate(b));
+        if (result !== 0) return result;
+    
+        // ---------- TERTIARY: created_at ----------
+        const aCreated = a.created_at ? new Date(a.created_at) : new Date(0);
+        const bCreated = b.created_at ? new Date(b.created_at) : new Date(0);
+    
+        return (aCreated - bCreated) * dir;
+    });
+    
+    
 
-    if (sortBy === 'word_count') {
-        aVal = a.word_count || 0;
-        bVal = b.word_count || 0;
-
-    } else if (sortBy === 'rereads') {
-        aVal = a.rereads ? a.rereads.length : 0;
-        bVal = b.rereads ? b.rereads.length : 0;
-
-    } else if (sortBy === 'rating') {
-        aVal = RATING_ORDER[a.rating] || 0;
-        bVal = RATING_ORDER[b.rating] || 0;
-
-    } else {
-        aVal = (a[sortBy] || '').toString().toLowerCase();
-        bVal = (b[sortBy] || '').toString().toLowerCase();
-    }
-
-    const dir = sortDir === 'asc' ? 1 : -1;
-
-    if (typeof aVal === 'number') {
-        return (aVal - bVal) * dir;
-    }
-
-    return aVal.localeCompare(bVal) * dir;
-});
 
     // Render
     container.innerHTML = filtered.map(fic => createFicCard(fic)).join('');
@@ -391,7 +448,7 @@ function createFicCard(fic) {
 
             <div class="fic-reread-section">
             <button class="btn-reread" data-id="${fic.id}">
-            ↪️ Reread
+            Reread
             </button>
 
 
@@ -429,7 +486,9 @@ function renderTagsInModal(filter = '') {
     const container = document.getElementById('tags-container');
     const search = filter.toLowerCase();
 
-    const filteredTags = tagsPool.filter(tag => tag.toLowerCase().includes(search));
+    const filteredTags = tagsPool
+    .filter(tag => tag.toLowerCase().includes(search))
+    .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
 
     container.innerHTML = filteredTags.map(tag => 
         `<button type="button" class="tag-btn inactive" data-tag="${tag}">${tag}</button>`
@@ -717,9 +776,9 @@ function resetFilters() {
     document.getElementById('status-filter').value = '';
     document.getElementById('rating-filter').value = '';
     document.getElementById('explicit-filter').value = '';
-    sortBy = 'title';
-    sortDir = 'asc';
-    document.getElementById('sort-by').value = 'title';
+    sortBy = 'date_read';
+    sortDir = 'des';
+    document.getElementById('sort-by').value = 'date_read';
     updateSortDirButton();
 }
 
@@ -947,3 +1006,157 @@ async function loadTagsFromFics() {
         console.error('Error loading tags:', err);
     }
 }
+
+
+// NAVIGATION: include manage-tags
+function navigateToPage(page) {
+    currentShip = page;
+    
+    // Update nav buttons
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.page === page);
+    });
+
+    // Show/hide pages
+    if (page === 'dashboard') {
+        document.getElementById('dashboard-page').classList.add('active');
+        document.getElementById('ship-page').classList.remove('active');
+        document.getElementById('manage-tags-page').classList.remove('active');
+        loadDashboard();
+    } else if (page === 'manage-tags') {
+        document.getElementById('dashboard-page').classList.remove('active');
+        document.getElementById('ship-page').classList.remove('active');
+        document.getElementById('manage-tags-page').classList.add('active');
+        renderManageTags();
+    } else {
+        document.getElementById('dashboard-page').classList.remove('active');
+        document.getElementById('ship-page').classList.add('active');
+        document.getElementById('manage-tags-page').classList.remove('active');
+        document.getElementById('ship-title').textContent = page;
+        resetFilters();
+        loadShipFics(page);
+    }
+}
+
+// ==========================================
+// TAG MANAGEMENT PAGE
+// ==========================================
+function renderManageTags() {
+    const container = document.getElementById('tags-management-container');
+    container.innerHTML = '';
+
+    const sortedTags = [...tagsPool].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+
+    sortedTags.forEach(tag => {
+        const row = document.createElement('div');
+        row.className = 'tag-row';
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.gap = '0.5rem';
+        row.style.marginBottom = '0.5rem';
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = tag;
+        input.style.flex = '1';
+
+        input.style.padding = '0.5rem';
+        input.style.border = '1px solid #dc2626';
+        input.style.borderRadius = '4px';
+        input.style.fontSize = '1rem';
+        input.style.fontFamily = 'inherit';
+        input.style.outline = 'none';
+
+        const saveBtn = document.createElement('button');
+        saveBtn.textContent = 'Save';
+        saveBtn.className = 'btn-primary';
+        saveBtn.onclick = () => updateTag(tag, input.value);
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.className = 'btn-secondary';
+        deleteBtn.onclick = () => deleteTag(tag);
+
+        row.appendChild(input);
+        row.appendChild(saveBtn);
+        row.appendChild(deleteBtn);
+
+        container.appendChild(row);
+    });
+}
+
+// Add new tag
+document.getElementById('add-new-tag-btn').addEventListener('click', () => {
+    const newTag = prompt('Enter new tag name:');
+    if (!newTag || tagsPool.includes(newTag)) return alert('Invalid or duplicate tag.');
+    tagsPool.push(newTag);
+    renderManageTags();
+});
+
+// Update a tag in all fics
+async function updateTag(oldTag, newTag) {
+    if (!newTag || oldTag === newTag) return;
+
+    try {
+        // Update fics that have this tag
+        const { data: fics, error } = await supabaseClient
+            .from('fanfics')
+            .select('id, tags');
+
+        if (error) throw error;
+
+        for (let fic of fics) {
+            if (fic.tags && fic.tags.includes(oldTag)) {
+                const updatedTags = fic.tags.map(t => t === oldTag ? newTag : t);
+                await supabaseClient
+                    .from('fanfics')
+                    .update({ tags: updatedTags })
+                    .eq('id', fic.id);
+            }
+        }
+
+        // Update tagsPool
+        tagsPool = tagsPool.map(t => t === oldTag ? newTag : t);
+
+        renderManageTags();
+        alert(`Tag "${oldTag}" updated to "${newTag}"!`);
+    } catch (err) {
+        console.error(err);
+        alert('Error updating tag.');
+    }
+}
+
+// Delete a tag from all fics
+async function deleteTag(tagToDelete) {
+    if (!confirm(`Are you sure you want to delete the tag "${tagToDelete}" from all fics?`)) return;
+
+    try {
+        const { data: fics, error } = await supabaseClient
+            .from('fanfics')
+            .select('id, tags');
+
+        if (error) throw error;
+
+        for (let fic of fics) {
+            if (fic.tags && fic.tags.includes(tagToDelete)) {
+                const updatedTags = fic.tags.filter(t => t !== tagToDelete);
+                await supabaseClient
+                    .from('fanfics')
+                    .update({ tags: updatedTags })
+                    .eq('id', fic.id);
+            }
+        }
+
+        // Remove from tagsPool
+        tagsPool = tagsPool.filter(t => t !== tagToDelete);
+
+        renderManageTags();
+        alert(`Tag "${tagToDelete}" deleted from all fics.`);
+    } catch (err) {
+        console.error(err);
+        alert('Error deleting tag.');
+    }
+}
+
+

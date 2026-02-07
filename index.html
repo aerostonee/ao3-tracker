@@ -37,6 +37,11 @@
             <button class="nav-btn" data-page="Merthur">Merthur</button>
             <button class="nav-btn" data-page="Hollanov">Hollanov</button>
             <button class="nav-btn" data-page="Drarry">Drarry</button>
+
+            
+            <div class="nav-right">
+                <button class="nav-btn" data-page="manage-tags">Manage Tags</button>
+            </div>
         </nav>
     </header>
 
@@ -86,6 +91,19 @@
             </div>
         </div>
 
+        <!-- Manage Tags Page -->
+        <div id="manage-tags-page" class="page">
+            <div class="page-header">
+                <h2>Manage Tags</h2>
+                <button class="btn-primary" id="add-new-tag-btn">+ Add New Tag</button>
+            </div>
+
+            <div id="tags-management-container">
+                <!-- Tags will be listed here dynamically -->
+            </div>
+        </div>
+
+
         <!-- Ship Pages -->
         <div id="ship-page" class="page">
             <div class="page-header">
@@ -95,7 +113,8 @@
 
             <!-- Filters -->
             <div class="filters-card">
-                <h3>🔍 Filters & Sort</h3>
+                <h3 id="filters-title">Filters & Sort (0)</h3>
+
                 <div class="filters-grid">
                     <input type="text" id="search-input" placeholder="Search title or author...">
                     
@@ -118,6 +137,7 @@
                         <option value="Fine">Fine</option>
                         <option value="Bad">Bad</option>
                         <option value="Terrible">Terrible</option>
+                        <option value="N/A">N/A</option>
                     </select>
 
                     <select id="explicit-filter">
@@ -127,11 +147,11 @@
                     </select>
 
                     <select id="sort-by">
+                        <option value="date_read">Sort by Date Read</option>
                         <option value="title">Sort by Title</option>
                         <option value="author">Sort by Author</option>
                         <option value="word_count">Sort by Word Count</option>
                         <option value="rating">Sort by Rating</option>
-                        <option value="date_read">Sort by Date Read</option>
                         <option value="rereads">Sort by Rereads</option>
                     </select>
 
@@ -220,10 +240,11 @@
                     <div class="form-group">
                         <label>Rating</label>
                         <select id="form-rating">
+                            <option value="N/A" selected>N/A</option>
                             <option value="Terrible">Terrible</option>
                             <option value="Bad">Bad</option>
                             <option value="Fine">Fine</option>
-                            <option value="Good" selected>Good</option>
+                            <option value="Good" >Good</option>
                             <option value="Great">Great</option>
                             <option value="Amazing">Amazing</option>
                             <option value="Favorite">Favorite</option>
