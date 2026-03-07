@@ -233,17 +233,25 @@ async function loadDashboard() {
 // ==========================================
 async function loadShipFics(ship) {
     try {
-        const { data: fics, error } = await supabaseClient
+
+        let query = supabaseClient
             .from('fanfics')
-            .select('*')
-            .eq('ship', ship);
+            .select('*');
+
+        if (ship === 'Misc') {
+            query = query.not('ship', 'in', `(${SHIPS.map(s => `"${s}"`).join(',')})`);
+        } else {
+            query = query.eq('ship', ship);
+        }
+
+        const { data: fics, error } = await query;
 
         if (error) throw error;
 
         renderFics(fics || []);
     } catch (error) {
         console.error('Error loading fics:', error);
-        alert('Error loading fanfics. Check console for details.');
+        alert('Error loading fanfics.');
     }
 }
 
@@ -269,11 +277,18 @@ function renderFics(fics) {
     let filtered = fics;
     
     const searchText = document.getElementById('search-input').value.toLowerCase();
+
     if (searchText) {
-        filtered = filtered.filter(f => 
-            f.title.toLowerCase().includes(searchText) || 
-            f.author.toLowerCase().includes(searchText)
-        );
+        filtered = filtered.filter(f => {
+            const titleMatch = f.title.toLowerCase().includes(searchText);
+            const authorMatch = f.author.toLowerCase().includes(searchText);
+    
+            // Allow ship searching only on Misc page
+            const shipMatch = currentShip === 'Misc' && 
+                (f.ship || '').toLowerCase().includes(searchText);
+    
+            return titleMatch || authorMatch || shipMatch;
+        });
     }
 
     const statusFilter = document.getElementById('status-filter').value;
@@ -440,6 +455,7 @@ function createFicCard(fic) {
             </div>
 
             <div class="fic-details">
+                ${!SHIPS.includes(fic.ship) ? `<div><span>Ship:</span> ${fic.ship}</div>` : ''}
                 <div><span>Words:</span> ${(fic.word_count || 0).toLocaleString()}</div>
                 <div><span>Rating:</span> ${fic.rating}</div>
                 <div><span>Status:</span> ${fic.status}</div>
@@ -468,12 +484,15 @@ function openModal(ship = null) {
     editingFicId = null;
     document.getElementById('modal-title').textContent = 'Add Fanfic';
     document.getElementById('fic-form').reset();
+    selectedTags = [];
+    document.getElementById('tag-search-input').value = '';
+    renderTagsInModal();
     setDefaultDate();
-    
-    if (ship) {
+
+    if (ship && ship !== 'Misc') {
         document.getElementById('form-ship').value = ship;
     }
-    
+
     document.getElementById('modal').classList.add('active');
 }
 
@@ -487,32 +506,51 @@ function renderTagsInModal(filter = '') {
     const search = filter.toLowerCase();
 
     const filteredTags = tagsPool
-    .filter(tag => tag.toLowerCase().includes(search))
-    .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+        .filter(tag => tag.toLowerCase().includes(search))
+        .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
 
-    container.innerHTML = filteredTags.map(tag => 
-        `<button type="button" class="tag-btn inactive" data-tag="${tag}">${tag}</button>`
-    ).join('');
+    container.innerHTML = filteredTags.map(tag => {
+        const isActive = selectedTags.includes(tag);
+        return `
+            <button 
+                type="button" 
+                class="tag-btn ${isActive ? 'active' : 'inactive'}" 
+                data-tag="${tag}">
+                ${tag}
+            </button>
+        `;
+    }).join('');
 
     container.querySelectorAll('.tag-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            e.target.classList.toggle('active');
-            e.target.classList.toggle('inactive');
+            const tag = e.target.dataset.tag;
+
+            if (selectedTags.includes(tag)) {
+                selectedTags = selectedTags.filter(t => t !== tag);
+                e.target.classList.remove('active');
+                e.target.classList.add('inactive');
+            } else {
+                selectedTags.push(tag);
+                e.target.classList.add('active');
+                e.target.classList.remove('inactive');
+            }
         });
     });
 
-    // If user typed a new tag that doesn't exist, show "Create" button
+    // Create new tag button
     if (search && !tagsPool.some(t => t.toLowerCase() === search)) {
         const createBtn = document.createElement('button');
         createBtn.type = 'button';
         createBtn.className = 'tag-btn create';
         createBtn.textContent = `+ Create "${filter}"`;
+
         createBtn.onclick = () => {
             tagsPool.push(filter);
-            renderTagsInModal(); // re-render
-            setSelectedTags([filter]);
+            selectedTags.push(filter);
+            renderTagsInModal();
             document.getElementById('tag-search-input').value = '';
         };
+
         container.appendChild(createBtn);
     }
 }

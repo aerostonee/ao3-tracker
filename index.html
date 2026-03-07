@@ -38,6 +38,8 @@
             <button class="nav-btn" data-page="Merthur">Merthur</button>
             <button class="nav-btn" data-page="Hollanov">Hollanov</button>
             <button class="nav-btn" data-page="Drarry">Drarry</button>
+            <button class="nav-btn" data-page="Misc">Misc</button>
+
 
             
             <div class="nav-right">
@@ -180,12 +182,13 @@
             <form id="fic-form">
                 <div class="form-group">
                     <label>Ship</label>
-                    <select id="form-ship" required>
-                        <option value="Klance">Klance</option>
-                        <option value="Merthur">Merthur</option>
-                        <option value="Hollanov">Hollanov</option>
-                        <option value="Drarry">Drarry</option>
-                    </select>
+                    <input list="ship-list" id="form-ship" required placeholder="Enter ship name">
+                        <datalist id="ship-list">
+                            <option value="Klance">
+                            <option value="Merthur">
+                            <option value="Hollanov">
+                            <option value="Drarry">
+                        </datalist>
                 </div>
 
                 <div class="form-group">
